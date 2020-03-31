@@ -1,4 +1,5 @@
 #pragma once
+#include <stdbool.h>
 
 
 struct coords {
@@ -7,13 +8,14 @@ struct coords {
 };
 
 struct hotSpot {
+	bool hasMiddle = false;
+	bool hasInner = false;
 	coords innerCoords;
-	int innerW;
-	int innerH;
+	int innerRadius;
 	coords middleCoords;
-	int middleW;
-	int middleH;
+	int middleRadius;
 	coords outerCoords;
-	int outerW;
-	int outerH;
+	int outerRadius;
 };
+
+std::vector<hotSpot> hotSpots;
