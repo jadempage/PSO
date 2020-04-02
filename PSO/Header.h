@@ -2,20 +2,26 @@
 #include <stdbool.h>
 
 
-struct coords {
-	int x;
-	int y;
-};
 
-struct hotSpot {
+struct sHotSpot {
 	bool hasMiddle = false;
 	bool hasInner = false;
-	coords innerCoords;
+	Vector2 innerCoords;
 	int innerRadius;
-	coords middleCoords;
+	Vector2 middleCoords;
 	int middleRadius;
-	coords outerCoords;
+	Vector2 outerCoords;
 	int outerRadius;
 };
 
-std::vector<hotSpot> hotSpots;
+struct sParticle {
+	Vector2 particleCoords;
+	Vector2 pBest;
+	int pBestValue; 
+	int pVelocity;
+};
+
+std::vector<sParticle> vParticles;
+std::vector<sHotSpot> vHotSpots;
+Vector2 globalBestCoords;
+int globalBestValue = 0;
