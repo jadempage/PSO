@@ -15,13 +15,13 @@ const int fieldStartW = 160;
 const int noParticles = 10; 
 const int maxTurns = 50;
 const int particleRad = 5;
-const int minVelocity = 5;
-const int maxVelocity = 10;
-const int c1 = 2; //Weight of local information
-const int c2 = 2; //Weight of global information
+const int minVelocity = -50;
+const int maxVelocity = 50;
+const int divMod = 10;
+int turns = 0;
 
-const double iCog = 1.496180; //Def cognitive weighting
-const double iSoc = 1.496180; //Def social weightin
+const double iCog = 1.496180 * globalBestValue; //Def cognitive weighting
+const double iSoc = 1.496180 / (globalBestValue + 1); //Def social weightin
 const double iInertia = 0.729844; //Def inertia
 
 unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
@@ -61,6 +61,7 @@ void calculateFitness() {
 			if (CheckCollisionCircles(cParticle, particleRad, cOuterHS, rOuterHS)) {
 				vParticles[p].pBest = cParticle;
 				vParticles[p].pBestValue = 1;
+				globalBestFound = true;
 				if (globalBestValue == 0) {
 					globalBestValue = 1;
 					globalBestCoords = cParticle;
@@ -73,6 +74,7 @@ void calculateFitness() {
 				if (CheckCollisionCircles(cParticle, particleRad, cMiddleHS, rMiddleHS)) {
 					vParticles[p].pBest = cParticle;
 					vParticles[p].pBestValue = 2;
+					globalBestFound = true;
 					if (globalBestValue == 1) {
 						globalBestValue = 2;
 						globalBestCoords = cParticle;
@@ -86,6 +88,7 @@ void calculateFitness() {
 				if (CheckCollisionCircles(cParticle, particleRad, cInnerHS, rInnerHS)) {
 					vParticles[p].pBest = cParticle;
 					vParticles[p].pBestValue = 3;
+					globalBestFound = true;
 					if (globalBestValue == 2) {
 						globalBestValue = 3;
 						globalBestCoords = cParticle;
@@ -94,144 +97,99 @@ void calculateFitness() {
 			}
 		}
 	}
+	//What about if no one is on red yet? Can't have no gBest! 
+	int radMod = 1;
+	while (!globalBestFound) {
+		for (int p = 0; p < noParticles; p++) {
+			for (int h = 0; h < vHotSpots.size(); h++) {
+				sHotSpot curH = vHotSpots[h];
+				sParticle curP = vParticles[p];
+				Vector2 cParticle = curP.particleCoords;
+				//Outer HS
+				Vector2 cOuterHS = curH.outerCoords;
+				int rOuterHS = curH.outerRadius + radMod;
+				if (CheckCollisionCircles(cParticle, particleRad, cOuterHS, rOuterHS)) {
+					globalBestCoords = cParticle;
+					globalBestFound = true;
+					break;
+				}
+				radMod++;
+			}
+		}
+	}
+	//If the particles personal best doesn't reach anything, reset it so they don't bounce back and forth
+	for (int p = 0; p < noParticles; p++) {
+		if (vParticles[p].pBestValue < 1) {
+			vParticles[p].pBest.x = vParticles[p].particleCoords.x;
+			vParticles[p].pBest.y = vParticles[p].particleCoords.y;
+		}
+	}
+
 }
 
 void updateVelocity() {
 	/*v = v + c1 * rand * (pBest – p) + c2 * rand * (gBest – p)*/
 	for (int p = 0; p < noParticles; p++) {
-		sParticle curP = vParticles[p];
-		Vector2 cParticle = curP.particleCoords;
-		int rand1 = getRand(1, 5);
-		int rand2 = getRand(1, 5);
-		int pBestWeightingX = curP.pBest.x - curP.particleCoords.x;
-		int pBestWeightingY = curP.pBest.y - curP.particleCoords.y;
-		int gBestWeightingX = globalBestCoords.x - curP.particleCoords.x;
-		int gBestWeightingY = globalBestCoords.y - curP.particleCoords.y;
-		int newVelocity = (curP.pVelocity + c1 * rand1 * (pBestWeightingX + pBestWeightingY) + c2 * rand2);
-		if (newVelocity > 10) newVelocity = 10;
-		if (newVelocity < 0) newVelocity = 1;
+		sParticle cur = vParticles[p];
+		Vector2 oldVel = cur.pVelocity;
+		Vector2 pBest = cur.pBest;
+		Vector2 gBest = globalBestCoords;
+		Vector2 curPos = cur.particleCoords;
+
+		double r1 = getRand(1, 3);
+		double r2 = getRand(1, 3);
+
+		//First part of the formula
+		Vector2 newVelocity;
+		double vXTemp = oldVel.x;
+		double vYTemp = oldVel.y;
+		vYTemp *= iInertia;
+		vXTemp *= iInertia;
+		newVelocity.x = vXTemp;
+		newVelocity.y = vYTemp;
+
+		//Second part of the formula
+		Vector2 vTemp;
+
+		vTemp.x = pBest.x - curPos.x;
+		vTemp.y = pBest.y - curPos.y;
+		vTemp.x = vTemp.x * iCog;
+		vTemp.y = vTemp.y * iCog;
+		vTemp.x = vTemp.x * r1;
+		vTemp.y = vTemp.y * r1; 
+		newVelocity.x = newVelocity.x + vTemp.x;
+		newVelocity.y = newVelocity.y + vTemp.y;
+
+		//Third part of formula
+		Vector2 vTemp2;
+
+		vTemp2.x = gBest.x - curPos.x;
+		vTemp2.y = gBest.y - curPos.y;
+		vTemp2.x *= iSoc;
+		vTemp2.y *= iSoc;
+		vTemp2.x *= r2;
+		vTemp2.y *= r2;
+		newVelocity.x += vTemp2.x;
+		newVelocity.y += vTemp2.y;
+
+		if (newVelocity.x > maxVelocity)  newVelocity.x = maxVelocity;
+		if (newVelocity.y > maxVelocity) newVelocity.y = maxVelocity;
+		if (newVelocity.y < minVelocity) newVelocity.y = minVelocity;
+		if (newVelocity.x < minVelocity) newVelocity.x = minVelocity;
 		vParticles[p].pVelocity = newVelocity; 
 	}
 }
 
 
 void updateCoordinates() {
-	int maxGlobalInfluence = 2;
-	int maxLocalInfluence = 2;
 	for (int p = 0; p < noParticles; p++) {
-		int goLeft = 0;
-		int goRight = 0;
-		int goUp = 0;
-		int goDown = 0;
-		sParticle curP = vParticles[p];
-		int vTravel = curP.pVelocity;
-		Vector2 cParticle = curP.particleCoords;
-		int influence = getRand(1, 4);
-		if (influence < 3) {
-			if(globalBestValue > 0){
-			//Global Influence
-			int bestX = globalBestCoords.x;
-			int bestY = globalBestCoords.y;
-			if (cParticle.x - globalBestCoords.x > 0) {
-				//Go left
-				goLeft = getRand(1, vTravel);
-				vTravel = vTravel - goLeft;
-				vParticles[p].particleCoords.x += goLeft;
-			}
-			else {
-				//Go Right
-				goRight = getRand(1, vTravel);
-				vTravel = vTravel - goLeft;
-				vParticles[p].particleCoords.x -= goRight;
-			}
-			if (cParticle.y - globalBestCoords.y > 0) {
-				//Go up
-				goUp = getRand(1, vTravel);
-				vTravel = vTravel - goUp;
-				vParticles[p].particleCoords.y += goUp;
-			}
-			else {
-				//Go down
-				goDown = getRand(1, vTravel);
-				vTravel = vTravel - goDown;
-				vParticles[p].particleCoords.x -= goDown;
-			}
-		}
-			else {
-				int dir = getRand(1, 4);
-				switch (dir) {
-				case 1:
-					//Go left
-					vParticles[p].particleCoords.x = +vTravel;
-					break;
-				case 2:
-					//Go Right
-					vParticles[p].particleCoords.x = -vTravel;
-					break;
-				case 3:
-					//Go Up
-					vParticles[p].particleCoords.y = +vTravel;
-					break;
-				case 4:
-					//Go Down
-					vParticles[p].particleCoords.y = -vTravel;
-					break;
-				}
-			}
-	}
-		if (influence > 2 ) {
-			//Local Influence
-			int bestX = curP.pBest.x;
-			int bestY = curP.pBest.y;
-			if (curP.pBestValue == 0) {
-				int dir = getRand(1, 4);
-				switch (dir) {
-				case 1:
-					//Go left
-					vParticles[p].particleCoords.x = +vTravel;
-					break;
-				case 2:
-					//Go Right
-					vParticles[p].particleCoords.x = -vTravel;
-					break;
-				case 3:
-					//Go Up
-					vParticles[p].particleCoords.y = +vTravel;
-					break;
-				case 4:
-					//Go Down
-					vParticles[p].particleCoords.y = -vTravel;
-					break;
-				}
-			}
-			if (cParticle.x - bestX > 0) {
-				//Go left
-				goLeft = getRand(1, vTravel);
-				vTravel = vTravel - goLeft;
-				vParticles[p].particleCoords.x -= goLeft;
-			}
-			else {
-				//Go Right
-				goRight = getRand(1, vTravel);
-				vTravel = vTravel - goLeft;
-				vParticles[p].particleCoords.x += goRight;
-			}
-			if (cParticle.y - bestY > 0) {
-				//Go up
-				goUp = getRand(1, vTravel);
-				vTravel = vTravel - goUp;
-				vParticles[p].particleCoords.y += goUp;
-			}
-			else {
-				//Go down
-				goDown = getRand(1, vTravel);
-				vTravel = vTravel - goDown;
-				vParticles[p].particleCoords.x -= goDown;
-			}
-		}
+
+		vParticles[p].particleCoords.x += vParticles[p].pVelocity.x;
+		vParticles[p].particleCoords.y += vParticles[p].pVelocity.y;
+
 		//Stay on the screen plz
 		if (vParticles[p].particleCoords.x > screenWidth) vParticles[p].particleCoords.x = screenWidth - particleRad;
-		if (vParticles[p].particleCoords.x < fieldStartW) vParticles[p].particleCoords.x = fieldStartW + particleRad *3 ;
+		if (vParticles[p].particleCoords.x < fieldStartW) vParticles[p].particleCoords.x = fieldStartW + particleRad * 3;
 		if (vParticles[p].particleCoords.y < 0) vParticles[p].particleCoords.y = particleRad;
 		if (vParticles[p].particleCoords.y > screenHeight) vParticles[p].particleCoords.y = screenHeight - particleRad;
 	}
@@ -324,7 +282,8 @@ int main() {
 		pbest.y = current.y;
 		temp.particleCoords = current;
 		temp.pBest = pbest;
-		temp.pVelocity = minVelocity;
+		temp.pVelocity.x = minVelocity;
+		temp.pVelocity.y = minVelocity;
 		vParticles.push_back(temp);
 	}
 
@@ -343,7 +302,9 @@ int main() {
 		DrawLine(fieldStartW, 0, fieldStartW, screenHeight, BLACK);
 
 		//Display Turns Text
-		DrawText("Turns", textTurnsX, textTurnsY, 30, GRAY);
+		char cTurns[20];
+		sprintf(cTurns, "%d", turns);
+		DrawText(cTurns, textTurnsX, textTurnsY, 30, GRAY);
 		DrawText("x", valTurnsX, valTurnsY, 25, BLUE);
 
 		//Display Barriers Text
@@ -383,6 +344,7 @@ int main() {
 		calculateFitness();
 		updateVelocity();
 		updateCoordinates();
+		turns++;
 	}
 	//DeInit
 	CloseWindow();

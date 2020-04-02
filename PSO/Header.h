@@ -18,10 +18,11 @@ struct sParticle {
 	Vector2 particleCoords;
 	Vector2 pBest;
 	int pBestValue; 
-	int pVelocity;
+	Vector2 pVelocity;
 };
 
 std::vector<sParticle> vParticles;
 std::vector<sHotSpot> vHotSpots;
 Vector2 globalBestCoords;
 int globalBestValue = 0;
+bool globalBestFound = false;
