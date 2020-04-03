@@ -8,6 +8,15 @@
 #include <random>
 #include <chrono>
 
+/*
+To Do:
+1.Add Buttons for "play" and "step"
+2.Add 4th tier spot
+3.Randomize spots completely rather than in tiers
+4.Allow user to draw barriers
+5.Make barriers impassible
+*/
+
 //Global vars b/c bad programming practice ¯\_(^_^)_/¯ 
 const int screenWidth = 800;
 const int screenHeight = 600;
@@ -17,7 +26,8 @@ const int maxTurns = 50;
 const int particleRad = 5;
 const int minVelocity = -50;
 const int maxVelocity = 50;
-const int divMod = 10;
+const int pLifespan = 20; //After this many rounds particles will start to die #
+const int pNumberToKill = noParticles / 2;
 int turns = 0;
 
 const double iCog = 1.496180 * globalBestValue; //Def cognitive weighting
@@ -45,12 +55,52 @@ int getRand(int min, int max) {
 	return value;
 }
 
+void generateParticles(int qty) {
+	for (int i = 0; i < qty; i++) {
+		sParticle temp;
+		Vector2 current;
+		current.x = getRand(fieldStartW, screenWidth);
+		current.y = getRand(0, screenHeight);
+		Vector2 pbest;
+		pbest.x = current.x;
+		pbest.y = current.y;
+		temp.particleCoords = current;
+		temp.pBest = pbest;
+		temp.pVelocity.x = minVelocity;
+		temp.pVelocity.y = minVelocity;
+		temp.isNewborn = true;
+		temp.isDying = false;
+		vParticles.push_back(temp);
+	}
+}
+
+void killParticles() {
+	if (pNumberToKill > vParticles.size()) {
+		return;
+		//Wtf
+	}
+	for (int p = 0; p < pNumberToKill; p++) {
+		vParticles[p].isDying = true;
+	}
+}
+
+void purgeParticles() {
+	for (int p = 0; p < vParticles.size(); p++) {
+		if (vParticles[p].isDying) {
+			vParticles.erase(vParticles.begin() + p);
+		}
+	}
+}
+
 void calculateFitness() {
 	//For each particle
 	//For each hotspot
 	//For each spot
 	//Check collision
 	for (int p = 0; p < noParticles; p++) {
+		if (vParticles[p].isNewborn) {
+			vParticles[p].isNewborn = false;
+		}
 		for (int h = 0; h < vHotSpots.size(); h++) {
 			sHotSpot curH = vHotSpots[h];
 			sParticle curP = vParticles[p];
@@ -272,20 +322,7 @@ int main() {
 	}
 
 	//Set up particles
-	for (int i = 0; i < noParticles; i++) {
-		sParticle temp;
-		Vector2 current;
-		current.x = getRand(fieldStartW, screenWidth);
-		current.y = getRand(0, screenHeight);
-		Vector2 pbest;
-		pbest.x = current.x;
-		pbest.y = current.y;
-		temp.particleCoords = current;
-		temp.pBest = pbest;
-		temp.pVelocity.x = minVelocity;
-		temp.pVelocity.y = minVelocity;
-		vParticles.push_back(temp);
-	}
+	generateParticles(noParticles);
 
 	//Init window
 	InitWindow(screenWidth, screenHeight, "Particle Swarm Optimisation");
@@ -304,8 +341,8 @@ int main() {
 		//Display Turns Text
 		char cTurns[20];
 		sprintf(cTurns, "%d", turns);
-		DrawText(cTurns, textTurnsX, textTurnsY, 30, GRAY);
-		DrawText("x", valTurnsX, valTurnsY, 25, BLUE);
+		DrawText("Turns", textTurnsX, textTurnsY, 30, GRAY);
+		DrawText(cTurns, valTurnsX, valTurnsY, 25, BLUE);
 
 		//Display Barriers Text
 		DrawText("Barriers", textBarsX, textBarsY, 30, GRAY);
@@ -336,14 +373,27 @@ int main() {
 
 		//Draw Particles
 		for (int i = 0; i < noParticles; i++) {
-			DrawCircle(vParticles[i].particleCoords.x, vParticles[i].particleCoords.y, particleRad, BLACK);
+			if (vParticles[i].isNewborn) {
+				DrawCircle(vParticles[i].particleCoords.x, vParticles[i].particleCoords.y, particleRad, SKYBLUE);
+			}
+			else if (vParticles[i].isDying) {
+				DrawCircle(vParticles[i].particleCoords.x, vParticles[i].particleCoords.y, particleRad, GREEN);
+			}
+			else {
+				DrawCircle(vParticles[i].particleCoords.x, vParticles[i].particleCoords.y, particleRad, BLACK);
+			}
 		}
-
+		
 		EndDrawing();
 		Concurrency::wait(100);
 		calculateFitness();
 		updateVelocity();
 		updateCoordinates();
+		if (turns % 20 == 0) {
+			killParticles();
+			generateParticles(pNumberToKill);
+		}
+		purgeParticles();
 		turns++;
 	}
 	//DeInit

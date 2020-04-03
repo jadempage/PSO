@@ -19,6 +19,9 @@ struct sParticle {
 	Vector2 pBest;
 	int pBestValue; 
 	Vector2 pVelocity;
+	bool isNewborn;
+	bool isDying;
+	//Days lived? 
 };
 
 std::vector<sParticle> vParticles;
