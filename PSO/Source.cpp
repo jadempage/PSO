@@ -19,8 +19,9 @@ To Do:
 7.Add reset button (probably a PITA)
 8.Add config buttons e.g. change particle qty, social and cognitive weights, inertia
 Notes:
-Particles get a bit overlappy at 50. Once you get a few hundred even tiny red dots are found in the first "generation"
-Kinda hard to see what's going on when you have 1000. I've tested up to 100,000 for fun but it gets a bit chuggy obviously..
+- Particles get a bit overlappy at 50. Once you get a few hundred even tiny red dots are found in the first "generation"
+  Kinda hard to see what's going on when you have 1000. I've tested up to 100,000 for fun but it gets a bit chuggy obviously..
+- You need to initialise a window before you can load a texture (OpenGL needs a current context!)
 */
 
 //Global vars b/c bad programming practice ¯\_(^_^)_/¯ 
@@ -48,7 +49,6 @@ std::mt19937 generator(seed);
 #define C_HS3       CLITERAL(Color){ 255, 128, 128, 255 }
 #define C_HS4		CLITERAL(Color){ 179, 0, 0, 255 }
 #define C_HS5		CLITERAL(Color){ 102, 0, 0, 255 }
-//Other vars
 
 
 
@@ -260,16 +260,18 @@ sHotSpot createHotSpot() {
 }
 
 int main() {
+	bool isPaused = false; 
+	bool isStep = false;
 	srand(time(NULL));
 	//Static vars
 	const int textTurnsX = 20;
 	const int textTurnsY = 20;
-	const int valTurnsX = 20;
+	const int valTurnsX = 50;
 	const int valTurnsY = 60;
-	const int textBarsX = 20;
-	const int textBarsY = 120;
-	const int valBarsX = 20;
-	const int valBarsY = 160;
+	const int textBarsX = 10;
+	const int textBarsY = 150;
+	const int valBarsX = 50;
+	const int valBarsY = 190;
 	Vector2 globalBestCoords = {};
 	
 
@@ -287,78 +289,126 @@ int main() {
 	InitWindow(screenWidth, screenHeight, "Particle Swarm Optimisation");
 	SetTargetFPS(60);
 
+	//Btn Textures
+	Texture2D btnPlay = LoadTexture("Icons/btnPlay.png");
+	Texture2D btnStep = LoadTexture("Icons/btnStep.png");
+	Texture2D btnPause = LoadTexture("Icons/btnPause.png");
+
+	//Init buttons
+	//Pause button
+	Rectangle btnPauseRec = { 0,  0, btnPause.width, btnPause.height };
+	Vector2 cBtnPause;
+	cBtnPause.x = 10;
+	cBtnPause.y = 90;
+	Rectangle btnPauseRecBounds = { cBtnPause.x, cBtnPause.y, btnPause.width, btnPause.height };
+	//Play button
+	Rectangle btnPlayRec = { 0, 0, btnPlay.width, btnPlay.height };
+	Vector2 cBtnPlay; 
+	cBtnPlay.x = 50;
+	cBtnPlay.y = 90;
+	Rectangle btnPlayRecBounds = { cBtnPlay.x, cBtnPlay.y, btnPlay.width, btnPlay.height };
+	//Step button
+	Rectangle btnStepRec = { 0, 0, btnStep.width, btnStep.height };
+	Vector2 cBtnStep;
+	cBtnStep.x = 90;
+	cBtnStep.y = 90;
+	Rectangle btnStepRecBounds = { cBtnStep.x, cBtnStep.y, btnStep.width, btnStep.height };
+
+	//Init mouse
+	Vector2 mousePoint = { 0.0f, 0.0f };
+
 	//Main Drawing Loop
 	while (!WindowShouldClose()) {
-		//Update
+		//Update mouse
+		mousePoint = GetMousePosition();
 
-		//Draw
-		BeginDrawing();
-
-		ClearBackground(RAYWHITE); 
-		DrawLine(fieldStartW, 0, fieldStartW, screenHeight, BLACK);
-
-		//Display Turns Text
-		char cTurns[20];
-		sprintf(cTurns, "%d", turns);
-		DrawText("Turns", textTurnsX, textTurnsY, 30, GRAY);
-		DrawText(cTurns, valTurnsX, valTurnsY, 25, BLUE);
-
-		//Display Barriers Text
-		DrawText("Barriers", textBarsX, textBarsY, 30, GRAY);
-		DrawText("x", valBarsX, valBarsY, 25, BLUE);
-
-		//Display Hotspots - draw all lesser colours first so higher tier colours can overlap 
-		for (int i = 0; i < vHotSpots.size(); i++) {
-			if (vHotSpots[i].tier == 1) {
-				DrawCircle(vHotSpots[i].coords.x, vHotSpots[i].coords.y, vHotSpots[i].radius, C_HS1);
-			}
+		if (CheckCollisionPointRec(mousePoint, btnPlayRecBounds)) {
+			if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) isPaused = false;
 		}
-		for (int i = 0; i < vHotSpots.size(); i++) {
-			if (vHotSpots[i].tier == 2) {
-				DrawCircle(vHotSpots[i].coords.x, vHotSpots[i].coords.y, vHotSpots[i].radius, C_HS2);
-			}
+		if (CheckCollisionPointRec(mousePoint, btnPauseRecBounds)) {
+			if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) isPaused = true;
 		}
-		for (int i = 0; i < vHotSpots.size(); i++) {
-			if (vHotSpots[i].tier == 3) {
-				DrawCircle(vHotSpots[i].coords.x, vHotSpots[i].coords.y, vHotSpots[i].radius, C_HS3);
-			}
-		}
-		for (int i = 0; i < vHotSpots.size(); i++) {
-			if (vHotSpots[i].tier == 4) {
-				DrawCircle(vHotSpots[i].coords.x, vHotSpots[i].coords.y, vHotSpots[i].radius, C_HS4);
-			}
-		}
-		for (int i = 0; i < vHotSpots.size(); i++) {
-			if (vHotSpots[i].tier == 5) {
-				DrawCircle(vHotSpots[i].coords.x, vHotSpots[i].coords.y, vHotSpots[i].radius, C_HS5);
-			}
+		if (CheckCollisionPointRec(mousePoint, btnStepRecBounds)) {
+			if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) isStep = true;
 		}
 
-		//Draw Particles
-		for (int i = 0; i < noParticles; i++) {
-			if (vParticles[i].isNewborn) {
-				DrawCircle(vParticles[i].particleCoords.x, vParticles[i].particleCoords.y, particleRad, SKYBLUE);
+			//Draw
+			BeginDrawing();
+
+			ClearBackground(RAYWHITE);
+			DrawLine(fieldStartW, 0, fieldStartW, screenHeight, BLACK);
+
+			//Display Turns Text
+			char cTurns[20];
+			sprintf(cTurns, "%d", turns);
+			DrawText("Turns", textTurnsX, textTurnsY, 30, GRAY);
+			DrawText(cTurns, valTurnsX, valTurnsY, 25, BLUE);
+
+			//Display Barriers Text
+			DrawText("Barriers", textBarsX, textBarsY, 30, GRAY);
+			DrawText("x", valBarsX, valBarsY, 25, BLUE);
+
+			//Buttons
+			DrawTextureRec(btnPlay, btnPlayRec, cBtnPlay, WHITE); // Draw button frame
+			DrawTextureRec(btnPause, btnPauseRec, cBtnPause, WHITE); // Draw button frame
+			DrawTextureRec(btnStep, btnStepRec, cBtnStep, WHITE); // Draw button frame
+
+			//Display Hotspots - draw all lesser colours first so higher tier colours can overlap 
+			for (int i = 0; i < vHotSpots.size(); i++) {
+				if (vHotSpots[i].tier == 1) {
+					DrawCircle(vHotSpots[i].coords.x, vHotSpots[i].coords.y, vHotSpots[i].radius, C_HS1);
+				}
 			}
-			else if (vParticles[i].isDying) {
-				DrawCircle(vParticles[i].particleCoords.x, vParticles[i].particleCoords.y, particleRad, GREEN);
+			for (int i = 0; i < vHotSpots.size(); i++) {
+				if (vHotSpots[i].tier == 2) {
+					DrawCircle(vHotSpots[i].coords.x, vHotSpots[i].coords.y, vHotSpots[i].radius, C_HS2);
+				}
 			}
-			else {
-				DrawCircle(vParticles[i].particleCoords.x, vParticles[i].particleCoords.y, particleRad, BLACK);
+			for (int i = 0; i < vHotSpots.size(); i++) {
+				if (vHotSpots[i].tier == 3) {
+					DrawCircle(vHotSpots[i].coords.x, vHotSpots[i].coords.y, vHotSpots[i].radius, C_HS3);
+				}
 			}
+			for (int i = 0; i < vHotSpots.size(); i++) {
+				if (vHotSpots[i].tier == 4) {
+					DrawCircle(vHotSpots[i].coords.x, vHotSpots[i].coords.y, vHotSpots[i].radius, C_HS4);
+				}
+			}
+			for (int i = 0; i < vHotSpots.size(); i++) {
+				if (vHotSpots[i].tier == 5) {
+					DrawCircle(vHotSpots[i].coords.x, vHotSpots[i].coords.y, vHotSpots[i].radius, C_HS5);
+				}
+			}
+
+			//Draw Particles
+			for (int i = 0; i < noParticles; i++) {
+				if (vParticles[i].isNewborn) {
+					DrawCircle(vParticles[i].particleCoords.x, vParticles[i].particleCoords.y, particleRad, SKYBLUE);
+				}
+				else if (vParticles[i].isDying) {
+					DrawCircle(vParticles[i].particleCoords.x, vParticles[i].particleCoords.y, particleRad, GREEN);
+				}
+				else {
+					DrawCircle(vParticles[i].particleCoords.x, vParticles[i].particleCoords.y, particleRad, BLACK);
+				}
+			}
+
+			EndDrawing();
+			Concurrency::wait(100);
+			if (!isPaused || (isPaused && isStep)) {
+				calculateFitness();
+				updateVelocity();
+				updateCoordinates();
+				if (turns % 20 == 0) {
+					killParticles();
+					generateParticles(pNumberToKill);
+				}
+				purgeParticles();
+				turns++;
+				isStep = false;
+			}
+
 		}
-		
-		EndDrawing();
-		Concurrency::wait(100);
-		calculateFitness();
-		updateVelocity();
-		updateCoordinates();
-		if (turns % 20 == 0) {
-			killParticles();
-			generateParticles(pNumberToKill);
-		}
-		purgeParticles();
-		turns++;
-	}
 	//DeInit
 	CloseWindow();
 	return 0;
