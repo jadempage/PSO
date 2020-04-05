@@ -15,6 +15,12 @@ To Do:
 3.Randomize spots completely rather than in tiers
 4.Allow user to draw barriers
 5.Make barriers impassible
+6.Turn limit
+7.Add reset button (probably a PITA)
+8.Add config buttons e.g. change particle qty, social and cognitive weights, inertia
+Notes:
+Particles get a bit overlappy at 50. Once you get a few hundred even tiny red dots are found in the first "generation"
+Kinda hard to see what's going on when you have 1000. I've tested up to 100,000 for fun but it gets a bit chuggy obviously..
 */
 
 //Global vars b/c bad programming practice ¯\_(^_^)_/¯ 
@@ -37,9 +43,11 @@ const double iInertia = 0.729844; //Def inertia
 unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
 std::mt19937 generator(seed);
 
-#define OUTERHS       CLITERAL(Color){ 255, 204, 204, 255 }
-#define MIDDLEHS       CLITERAL(Color){ 255, 128, 128, 255 }
-#define INNERHS       CLITERAL(Color){ 255, 0, 0, 255 }
+#define C_HS1       CLITERAL(Color){ 255, 230, 230, 255 }
+#define C_HS2       CLITERAL(Color){ 255, 179, 179, 255 }
+#define C_HS3       CLITERAL(Color){ 255, 128, 128, 255 }
+#define C_HS4		CLITERAL(Color){ 179, 0, 0, 255 }
+#define C_HS5		CLITERAL(Color){ 102, 0, 0, 255 }
 //Other vars
 
 
@@ -66,6 +74,7 @@ void generateParticles(int qty) {
 		pbest.y = current.y;
 		temp.particleCoords = current;
 		temp.pBest = pbest;
+		temp.pBestValue = 0;
 		temp.pVelocity.x = minVelocity;
 		temp.pVelocity.y = minVelocity;
 		temp.isNewborn = true;
@@ -105,42 +114,17 @@ void calculateFitness() {
 			sHotSpot curH = vHotSpots[h];
 			sParticle curP = vParticles[p];
 			Vector2 cParticle = curP.particleCoords;
-			//Outer HS
-			Vector2 cOuterHS = curH.outerCoords;
-			int rOuterHS = curH.outerRadius;
-			if (CheckCollisionCircles(cParticle, particleRad, cOuterHS, rOuterHS)) {
-				vParticles[p].pBest = cParticle;
-				vParticles[p].pBestValue = 1;
-				globalBestFound = true;
-				if (globalBestValue == 0) {
-					globalBestValue = 1;
-					globalBestCoords = cParticle;
-				}
-			}
-			//Middle HS
-			if (curH.hasMiddle) {
-				Vector2 cMiddleHS = curH.middleCoords;
-				int rMiddleHS = curH.middleRadius;
-				if (CheckCollisionCircles(cParticle, particleRad, cMiddleHS, rMiddleHS)) {
+			int hTier = curH.tier;
+			int pTier = curP.pBestValue;
+			Vector2 hsCoords = curH.coords;
+			int rad = curH.radius;
+			if (CheckCollisionCircles(cParticle, particleRad, hsCoords, rad)) {
+				if (hTier > pTier) {
 					vParticles[p].pBest = cParticle;
-					vParticles[p].pBestValue = 2;
+					vParticles[p].pBestValue = hTier;
 					globalBestFound = true;
-					if (globalBestValue == 1) {
-						globalBestValue = 2;
-						globalBestCoords = cParticle;
-					}
-				}
-			}
-			//Inner HS
-			if (curH.hasInner) {
-				Vector2 cInnerHS = curH.innerCoords;
-				int rInnerHS = curH.innerRadius;
-				if (CheckCollisionCircles(cParticle, particleRad, cInnerHS, rInnerHS)) {
-					vParticles[p].pBest = cParticle;
-					vParticles[p].pBestValue = 3;
-					globalBestFound = true;
-					if (globalBestValue == 2) {
-						globalBestValue = 3;
+					if (globalBestValue < hTier) {
+						globalBestValue = hTier;
 						globalBestCoords = cParticle;
 					}
 				}
@@ -155,17 +139,16 @@ void calculateFitness() {
 				sHotSpot curH = vHotSpots[h];
 				sParticle curP = vParticles[p];
 				Vector2 cParticle = curP.particleCoords;
-				//Outer HS
-				Vector2 cOuterHS = curH.outerCoords;
-				int rOuterHS = curH.outerRadius + radMod;
-				if (CheckCollisionCircles(cParticle, particleRad, cOuterHS, rOuterHS)) {
+				Vector2 coords = curH.coords;
+				int rad = curH.radius + radMod;
+				if (CheckCollisionCircles(cParticle, particleRad, coords, rad)) {
 					globalBestCoords = cParticle;
 					globalBestFound = true;
 					break;
 				}
-				radMod++;
 			}
 		}
+		radMod++;
 	}
 	//If the particles personal best doesn't reach anything, reset it so they don't bounce back and forth
 	for (int p = 0; p < noParticles; p++) {
@@ -245,60 +228,36 @@ void updateCoordinates() {
 	}
 }
 
-sHotSpot createHotSpots() {
-
+sHotSpot createHotSpot() {
+	//HS 1 most common, 5 least common
 	sHotSpot retHotspot;
-	Vector2 innerCords;
-	Vector2 middleCords;
-	Vector2 outerCords;
-	//Outer Spot
-	int numHSpots = getRand(1, 5);
-	for (int i = 0; i < numHSpots; i++) {
-		if (i == 0) {
-			int outerRad = getRand(10, 100);
-			int xPos = getRand(fieldStartW + outerRad, screenWidth - outerRad);
-			int yPos = getRand(outerRad, screenHeight + outerRad);
-			outerCords.x = xPos;
-			outerCords.y = yPos;
-			retHotspot.outerCoords = outerCords;
-			retHotspot.outerRadius = outerRad;
-		}
-		if (i == 1) {
-			retHotspot.hasMiddle = true;
-			int xMax = retHotspot.outerCoords.x + 11;
-			int xMin = retHotspot.outerCoords.x - 11;
-			int yMax = retHotspot.outerCoords.y + 11;
-			int yMin = retHotspot.outerCoords.y - 11;
-			if (xMax > screenWidth) xMax = screenWidth - 20;
-			if (xMax < fieldStartW) xMin = fieldStartW + 20;
-			if (yMax > screenHeight) yMax = screenHeight - 20;
-			if (yMin < 0) yMin = 20;
-			middleCords.x = getRand(xMin, xMax);
-			middleCords.y = getRand(yMin, yMax);
-			int middleRad = getRand(7, retHotspot.outerRadius);
-			retHotspot.middleCoords = middleCords;
-			retHotspot.middleRadius = middleRad;
-		}
-		if (i == 2) {
-			retHotspot.hasInner = true;
-			int xMax = retHotspot.middleCoords.x + 11;
-			int xMin = retHotspot.middleCoords.x - 11;
-			int yMax = retHotspot.middleCoords.y + 11;
-			int yMin = retHotspot.middleCoords.y - 11;
-			if (xMax > screenWidth) xMax = screenWidth - 20;
-			if (xMax < fieldStartW) xMin = fieldStartW + 20;
-			if (yMax > screenHeight) yMax = screenHeight - 20;
-			if (yMin < 0) yMin = 0;
-			innerCords.x = getRand(xMin, xMax);
-			innerCords.y = getRand(yMin, yMax);
-			int innerRad = getRand(5, retHotspot.middleRadius);
-			retHotspot.innerCoords = innerCords;
-			retHotspot.innerRadius = innerRad;
-		}
+	Vector2 tempCoords;
+	int tier = getRand(1, 50);
+	//Make tiers proportionately rare
+	if (tier <= 20) {
+		retHotspot.tier = 1;
 	}
+	else if (tier <= 30) {
+		retHotspot.tier = 2;
+	}
+	else if (tier <= 38) {
+		retHotspot.tier = 3;
+	}
+	else if (tier <= 45) {
+		retHotspot.tier = 3;
+	}
+	else {
+		retHotspot.tier = 4;
+	}
+
+	int rad = getRand(retHotspot.tier, retHotspot.tier * 20);
+	int xPos = getRand(fieldStartW + rad, screenWidth - rad);
+    int yPos = getRand(rad, screenHeight + rad);
+	retHotspot.coords.x = xPos;
+	retHotspot.coords.y = yPos;
+	retHotspot.radius = rad; 
 	return retHotspot;
 }
-
 
 int main() {
 	srand(time(NULL));
@@ -315,9 +274,9 @@ int main() {
 	
 
 	//Generate Hotspots
-	int numHSpots = getRand(2, 5);
+	int numHSpots = getRand(3, 30);
 	for (int i = 0; i < numHSpots; i++) {
-		sHotSpot temp = createHotSpots();
+		sHotSpot temp = createHotSpot();
 		vHotSpots.push_back(temp);
 	}
 
@@ -348,26 +307,30 @@ int main() {
 		DrawText("Barriers", textBarsX, textBarsY, 30, GRAY);
 		DrawText("x", valBarsX, valBarsY, 25, BLUE);
 
-		//Display Hotspots
+		//Display Hotspots - draw all lesser colours first so higher tier colours can overlap 
 		for (int i = 0; i < vHotSpots.size(); i++) {
-			//Draw outer circle
-			DrawCircle(vHotSpots[i].outerCoords.x, vHotSpots[i].outerCoords.y, vHotSpots[i].outerRadius, OUTERHS);
+			if (vHotSpots[i].tier == 1) {
+				DrawCircle(vHotSpots[i].coords.x, vHotSpots[i].coords.y, vHotSpots[i].radius, C_HS1);
+			}
 		}
-
 		for (int i = 0; i < vHotSpots.size(); i++) {
-			//Draw middle circle
-			if (vHotSpots[i].hasMiddle) {
-				DrawCircle(vHotSpots[i].middleCoords.x, vHotSpots[i].middleCoords.y, vHotSpots[i].middleRadius, MIDDLEHS);
+			if (vHotSpots[i].tier == 2) {
+				DrawCircle(vHotSpots[i].coords.x, vHotSpots[i].coords.y, vHotSpots[i].radius, C_HS2);
 			}
-			//Draw inner circle
-			if (vHotSpots[i].hasInner) {
-				DrawCircle(vHotSpots[i].innerCoords.x, vHotSpots[i].innerCoords.y, vHotSpots[i].innerRadius, INNERHS);
-			}
-		} 
+		}
 		for (int i = 0; i < vHotSpots.size(); i++) {
-			//Draw inner circle
-			if (vHotSpots[i].hasInner) {
-				DrawCircle(vHotSpots[i].innerCoords.x, vHotSpots[i].innerCoords.y, vHotSpots[i].innerRadius, INNERHS);
+			if (vHotSpots[i].tier == 3) {
+				DrawCircle(vHotSpots[i].coords.x, vHotSpots[i].coords.y, vHotSpots[i].radius, C_HS3);
+			}
+		}
+		for (int i = 0; i < vHotSpots.size(); i++) {
+			if (vHotSpots[i].tier == 4) {
+				DrawCircle(vHotSpots[i].coords.x, vHotSpots[i].coords.y, vHotSpots[i].radius, C_HS4);
+			}
+		}
+		for (int i = 0; i < vHotSpots.size(); i++) {
+			if (vHotSpots[i].tier == 5) {
+				DrawCircle(vHotSpots[i].coords.x, vHotSpots[i].coords.y, vHotSpots[i].radius, C_HS5);
 			}
 		}
 
@@ -400,75 +363,4 @@ int main() {
 	CloseWindow();
 	return 0;
 }
-
-
-
-
-//int main(void)
-//{
-//	// Initialization
-//	//--------------------------------------------------------------------------------------
-//	const int screenWidth = 800;
-//	const int screenHeight = 450;
-//
-//	InitWindow(screenWidth, screenHeight, "raylib [shapes] example - basic shapes drawing");
-//
-//	SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
-//	//--------------------------------------------------------------------------------------
-//
-//	// Main game loop
-//	while (!WindowShouldClose())    // Detect window close button or ESC key
-//	{
-//		// Update
-//		//----------------------------------------------------------------------------------
-//		// TODO: Update your variables here
-//		//----------------------------------------------------------------------------------
-//
-//		// Draw
-//		//----------------------------------------------------------------------------------
-//		BeginDrawing();
-//
-//		ClearBackground(RAYWHITE);
-//
-//		DrawText("some basic shapes available on raylib", 20, 20, 20, DARKGRAY);
-//
-//		DrawCircle(screenWidth / 4, 120, 35, DARKBLUE);
-//
-//		DrawRectangle(screenWidth / 4 * 2 - 60, 100, 120, 60, RED);
-//		DrawRectangleLines(screenWidth / 4 * 2 - 40, 320, 80, 60, ORANGE);  // NOTE: Uses QUADS internally, not lines
-//		DrawRectangleGradientH(screenWidth / 4 * 2 - 90, 170, 180, 130, MAROON, GOLD);
-//
-//		DrawTriangle((Vector2) { screenWidth / 4 * 3, 80 },
-//			(Vector2) {
-//			screenWidth / 4 * 3 - 60, 150
-//		},
-//			(Vector2) {
-//			screenWidth / 4 * 3 + 60, 150
-//		}, VIOLET);
-//
-//		DrawPoly((Vector2) { screenWidth / 4 * 3, 320 }, 6, 80, 0, BROWN);
-//
-//		DrawCircleGradient(screenWidth / 4, 220, 60, GREEN, SKYBLUE);
-//
-//		// NOTE: We draw all LINES based shapes together to optimize internal drawing,
-//		// this way, all LINES are rendered in a single draw pass
-//		DrawLine(18, 42, screenWidth - 18, 42, BLACK);
-//		DrawCircleLines(screenWidth / 4, 340, 80, DARKBLUE);
-//		DrawTriangleLines((Vector2) { screenWidth / 4 * 3, 160 },
-//			(Vector2) {
-//			screenWidth / 4 * 3 - 20, 230
-//		},
-//			(Vector2) {
-//			screenWidth / 4 * 3 + 20, 230
-//		}, DARKBLUE);
-//		EndDrawing();
-//		//----------------------------------------------------------------------------------
-//	}
-//
-//	// De-Initialization
-//	//--------------------------------------------------------------------------------------
-//	CloseWindow();        // Close window and OpenGL context
-//	//--------------------------------------------------------------------------------------
-//
-//	return 0;
-//}
+ 

@@ -3,15 +3,21 @@
 
 
 
+//struct sHotSpot {
+//	bool hasMiddle = false;
+//	bool hasInner = false;
+//	Vector2 innerCoords;
+//	int innerRadius;
+//	Vector2 middleCoords;
+//	int middleRadius;
+//	Vector2 outerCoords;
+//	int outerRadius;
+//};
+
 struct sHotSpot {
-	bool hasMiddle = false;
-	bool hasInner = false;
-	Vector2 innerCoords;
-	int innerRadius;
-	Vector2 middleCoords;
-	int middleRadius;
-	Vector2 outerCoords;
-	int outerRadius;
+	int tier;
+	Vector2 coords;
+	int radius;
 };
 
 struct sParticle {
