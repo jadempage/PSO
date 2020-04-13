@@ -10,10 +10,6 @@
 
 /*
 To Do:
-1.Add Buttons for "play" and "step"
-2.Add 4th tier spot
-3.Randomize spots completely rather than in tiers
-4.Allow user to draw barriers
 5.Make barriers impassible
 6.Turn limit
 7.Add reset button (probably a PITA)
@@ -223,9 +219,8 @@ float dist(double x1, double y1, double x2, double y2)
 	return value;
 }
 
-bool lineCircleCollision(Vector2 vCursor, int cursorRad, Vector2 vLineStart, Vector2 vLineEnd) {
+bool lineCircleCollision(Vector2 vCursor, float buffer, Vector2 vLineStart, Vector2 vLineEnd) {
 	//http://jeffreythompson.org/collision-detection/line-point.php
-	float buffer = 0.1;
 	float lineLen = dist(vLineStart.x, vLineStart.y, vLineEnd.x, vLineEnd.y);
 	float d1 = dist(vCursor.x, vCursor.y, vLineStart.x, vLineStart.y);
 	float d2 = dist(vCursor.x, vCursor.y, vLineEnd.x, vLineEnd.y);
@@ -237,11 +232,74 @@ bool lineCircleCollision(Vector2 vCursor, int cursorRad, Vector2 vLineStart, Vec
 
 }
 
+Vector2 lineLineCollision(Vector2 pOrig, Vector2 pRes, Vector2 vLineStart, Vector2 vLineEnd) {
+	//http://jeffreythompson.org/collision-detection/line-line.php
+	double x1 = pOrig.x;
+	double y1 = pOrig.y;
+	double x2 = pRes.x;
+	double y2 = pRes.y;
+	double x3 = vLineStart.x;
+	double y3 = vLineStart.y;
+	double x4 = vLineEnd.x;
+	double y4 = vLineEnd.y;
+	Vector2 ret;
+
+	// calculate the distance to intersection point
+	double uA = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / ((y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1));
+	double uB = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / ((y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1));
+	// if uA and uB are between 0-1, lines are colliding
+	if (uA >= 0 && uA <= 1 && uB >= 0 && uB <= 1) {
+		// optionally, draw a circle where the lines meet
+		double intersectionX = x1 + (uA * (x2 - x1));
+		double intersectionY = y1 + (uA * (y2 - y1));
+		ret.x = intersectionX;
+		ret.y = intersectionY;
+	}
+	else {
+		ret.x = -1;
+		ret.y = -1; 
+	}
+	return ret;
+
+}
+
 void updateCoordinates() {
 	for (int p = 0; p < noParticles; p++) {
+		//Calculate line line intersection using particles movements as line A and barrier as line B
+		Vector2 curCoords = vParticles[p].particleCoords;
+		Vector2 newCoords;
+		Vector2 backCoords;
+		newCoords.x = vParticles[p].particleCoords.x + vParticles[p].pVelocity.x;
+		newCoords.y = vParticles[p].particleCoords.y + vParticles[p].pVelocity.y;
+		if (vBarriers.size() > 0) {
+			for (int i = 0; i < vBarriers.size(); i++) {
+				Vector2 collisionRes = lineLineCollision(curCoords, newCoords, vBarriers[i].vStart, vBarriers[i].vFin);
+				if (collisionRes.x == -1) {
+					vParticles[p].particleCoords = newCoords;
+				}
+				else {
+					if (curCoords.x > newCoords.x) {
+						backCoords.x = collisionRes.x + 10;
+					}
+					else {
+						backCoords.x = collisionRes.x - 10;
+					}
+					if (curCoords.y > newCoords.y) {
+						backCoords.y = collisionRes.y + 10;
+					}
+					else {
+						backCoords.y = collisionRes.y - 10;
+					}
+					vParticles[p].particleCoords = backCoords;
+					break;
+				}
+			}
+		}
+		else {
+			vParticles[p].particleCoords = newCoords;
+		}
 
-		vParticles[p].particleCoords.x += vParticles[p].pVelocity.x;
-		vParticles[p].particleCoords.y += vParticles[p].pVelocity.y;
+
 
 		//Stay on the screen plz
 		if (vParticles[p].particleCoords.x > screenWidth) vParticles[p].particleCoords.x = screenWidth - particleRad;
@@ -503,7 +561,7 @@ int main() {
 			if (removingBarriers) {
 				for (int i = 0; i < vBarriers.size(); i++) {
 					sBarrier temp = vBarriers[i];
-					if (lineCircleCollision(mousePoint, 0, vBarriers[i].vStart, vBarriers[i].vFin)) {
+					if (lineCircleCollision(mousePoint, 0.1, vBarriers[i].vStart, vBarriers[i].vFin)) {
 						sBarrier cur = vBarriers[i];
 						DrawLineEx(cur.vStart, cur.vFin, 3, GREEN);
 						if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
