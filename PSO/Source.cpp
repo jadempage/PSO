@@ -213,6 +213,29 @@ void updateVelocity() {
 	}
 }
 
+float dist(double x1, double y1, double x2, double y2)
+{
+	//https://stackoverflow.com/questions/40938720/finding-the-distance-between-two-points-in-c
+	double square_difference_x = (x2 - x1) * (x2 - x1);
+	double square_difference_y = (y2 - y1) * (y2 - y1);
+	double sum = square_difference_x + square_difference_y;
+	double value = sqrt(sum);
+	return value;
+}
+
+bool lineCircleCollision(Vector2 vCursor, int cursorRad, Vector2 vLineStart, Vector2 vLineEnd) {
+	//http://jeffreythompson.org/collision-detection/line-point.php
+	float buffer = 0.1;
+	float lineLen = dist(vLineStart.x, vLineStart.y, vLineEnd.x, vLineEnd.y);
+	float d1 = dist(vCursor.x, vCursor.y, vLineStart.x, vLineStart.y);
+	float d2 = dist(vCursor.x, vCursor.y, vLineEnd.x, vLineEnd.y);
+
+	if (d1 + d2 >= lineLen - buffer && d1 + d2 <= lineLen + buffer) {
+		return true;
+	}
+	return false;
+
+}
 
 void updateCoordinates() {
 	for (int p = 0; p < noParticles; p++) {
@@ -260,8 +283,13 @@ sHotSpot createHotSpot() {
 }
 
 int main() {
+	int noBarriers = 0;
 	bool isPaused = false; 
 	bool isStep = false;
+	bool addingBarriers = false;
+	bool removingBarriers = false; 
+	bool doneFirstPoint = false;
+	bool doneSecondPoint = false; 
 	srand(time(NULL));
 	//Static vars
 	const int textTurnsX = 20;
@@ -270,8 +298,10 @@ int main() {
 	const int valTurnsY = 60;
 	const int textBarsX = 10;
 	const int textBarsY = 150;
-	const int valBarsX = 50;
-	const int valBarsY = 190;
+	const int valBarsX = 70;
+	const int valBarsY = 210;
+	const int infoTextX = 10;
+	const int infoTextY = 350;
 	Vector2 globalBestCoords = {};
 	
 
@@ -293,6 +323,8 @@ int main() {
 	Texture2D btnPlay = LoadTexture("Icons/btnPlay.png");
 	Texture2D btnStep = LoadTexture("Icons/btnStep.png");
 	Texture2D btnPause = LoadTexture("Icons/btnPause.png");
+	Texture2D btnBarAdd = LoadTexture("Icons/btnDraw.png");
+	Texture2D btnBarRem = LoadTexture("Icons/btnErase.png");
 
 	//Init buttons
 	//Pause button
@@ -313,6 +345,19 @@ int main() {
 	cBtnStep.x = 90;
 	cBtnStep.y = 90;
 	Rectangle btnStepRecBounds = { cBtnStep.x, cBtnStep.y, btnStep.width, btnStep.height };
+	//-Bar button
+	Rectangle btnBarRemRec = { 0, 0, btnBarRem.width, btnBarRem.height };
+	Vector2 cBtnRem;
+	cBtnRem.x = 10;
+	cBtnRem.y = 190;
+	Rectangle btnRemRecBounds = { cBtnRem.x, cBtnRem.y, btnBarRem.width, btnBarRem.height };
+	//+Bar button
+	Rectangle btnBarAddRec = { 0, 0, btnBarAdd.width, btnBarAdd.height };
+	Vector2 cBtnAdd;
+	cBtnAdd.x = 10;
+	cBtnAdd.y = 230;
+	Rectangle btnAddRecBounds = { cBtnAdd.x, cBtnAdd.y, btnBarAdd.width, btnBarAdd.height };
+
 
 	//Init mouse
 	Vector2 mousePoint = { 0.0f, 0.0f };
@@ -331,6 +376,18 @@ int main() {
 		if (CheckCollisionPointRec(mousePoint, btnStepRecBounds)) {
 			if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) isStep = true;
 		}
+		if (CheckCollisionPointRec(mousePoint, btnAddRecBounds)) {
+			if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
+				isPaused = true;
+				addingBarriers = true;
+			}
+		}
+		if (CheckCollisionPointRec(mousePoint, btnRemRecBounds)) {
+			if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
+				isPaused = true;
+				removingBarriers = true;
+			}
+		}
 
 			//Draw
 			BeginDrawing();
@@ -345,13 +402,17 @@ int main() {
 			DrawText(cTurns, valTurnsX, valTurnsY, 25, BLUE);
 
 			//Display Barriers Text
+			char cBars[20];
+			sprintf(cBars, "%d", noBarriers);
 			DrawText("Barriers", textBarsX, textBarsY, 30, GRAY);
-			DrawText("x", valBarsX, valBarsY, 25, BLUE);
+			DrawText(cBars, valBarsX, valBarsY, 25, BLUE);
 
 			//Buttons
 			DrawTextureRec(btnPlay, btnPlayRec, cBtnPlay, WHITE); // Draw button frame
 			DrawTextureRec(btnPause, btnPauseRec, cBtnPause, WHITE); // Draw button frame
 			DrawTextureRec(btnStep, btnStepRec, cBtnStep, WHITE); // Draw button frame
+			DrawTextureRec(btnBarAdd, btnBarAddRec, cBtnAdd, WHITE); // Draw button frame
+			DrawTextureRec(btnBarRem, btnBarRemRec, cBtnRem, WHITE); // Draw button frame
 
 			//Display Hotspots - draw all lesser colours first so higher tier colours can overlap 
 			for (int i = 0; i < vHotSpots.size(); i++) {
@@ -393,8 +454,75 @@ int main() {
 				}
 			}
 
+			//Draw Barriers
+			for (int i = 0; i < vBarriers.size(); i++) {
+				sBarrier cur = vBarriers[i];
+				DrawLineEx(cur.vStart, cur.vFin, 3, BLACK);
+				
+			}
+
+			//Add Barriers
+			if (addingBarriers) {
+				sBarrier temp;
+				if (!doneFirstPoint) {
+					mousePoint = GetMousePosition();
+					DrawText("Right click to", infoTextX, infoTextY, 20, GRAY);
+					DrawText("set start pos", infoTextX, infoTextY + 30, 20, GRAY);
+					if (IsMouseButtonReleased(MOUSE_RIGHT_BUTTON)) {
+						temp.vStart.x = mousePoint.x;
+						temp.vStart.y = mousePoint.y;
+						DrawCircle(temp.vStart.x, temp.vStart.y, 3, PURPLE);
+						doneFirstPoint = true;
+					}
+				}
+				if (!doneSecondPoint && doneFirstPoint) {
+					Concurrency::wait(500);
+					DrawRectangle(infoTextX, infoTextY, 100, 100, RAYWHITE);
+					mousePoint = GetMousePosition();
+					DrawText("Left click to", infoTextX, infoTextY, 20, GRAY);
+					DrawText("set end pos", infoTextX, infoTextY + 30, 20, GRAY);
+					if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
+						mousePoint = GetMousePosition();
+						temp.vFin.x = mousePoint.x;
+						temp.vFin.y = mousePoint.y;
+						DrawCircle(temp.vFin.x, temp.vFin.y, 3, PURPLE);
+						doneSecondPoint = true;
+					}
+				}
+				if (doneFirstPoint && doneSecondPoint) {
+					vBarriers.push_back(temp);
+					noBarriers++;
+					doneFirstPoint = false;
+					doneSecondPoint = false;
+					addingBarriers = false;
+					isPaused = false; 
+				}
+			}
+
+			//Rem barriers
+			if (removingBarriers) {
+				for (int i = 0; i < vBarriers.size(); i++) {
+					sBarrier temp = vBarriers[i];
+					if (lineCircleCollision(mousePoint, 0, vBarriers[i].vStart, vBarriers[i].vFin)) {
+						sBarrier cur = vBarriers[i];
+						DrawLineEx(cur.vStart, cur.vFin, 3, GREEN);
+						if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+							vBarriers.erase(vBarriers.begin() + i);
+							isPaused = false;
+							removingBarriers = false;
+						}
+					}
+
+					//if (CheckCollisionPointRec(mousePoint, btnPauseRecBounds)) {
+					//	if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) isPaused = true;
+					//}
+				}
+			}
+
+
 			EndDrawing();
 			Concurrency::wait(100);
+			
 			if (!isPaused || (isPaused && isStep)) {
 				calculateFitness();
 				updateVelocity();

@@ -30,8 +30,14 @@ struct sParticle {
 	//Days lived? 
 };
 
+struct sBarrier {
+	Vector2 vStart;
+	Vector2 vFin;
+};
+
 std::vector<sParticle> vParticles;
 std::vector<sHotSpot> vHotSpots;
 Vector2 globalBestCoords;
 int globalBestValue = 0;
 bool globalBestFound = false;
+std::vector<sBarrier> vBarriers;
